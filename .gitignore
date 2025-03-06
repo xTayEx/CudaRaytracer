@@ -1,0 +1,47 @@
+# Build outputs
+build/
+out/
+*.o
+*.obj
+*.so
+*.dll
+*.exe
+
+# CUDA-specific files
+*.cubin
+*.ptx
+*.cu.o
+*.cuda-fatbin
+
+# IDE and editor files
+*.swp
+*.swo
+*.bak
+*~
+.DS_Store
+Thumbs.db
+
+# Debugging and profiling files
+*.dSYM/
+*.profdata
+*.gcda
+*.gcno
+
+# Logs and temp files
+logs/
+temp/
+*.log
+
+# CMake files
+CMakeFiles/
+cmake_install.cmake
+CMakeCache.txt
+
+# Visual Studio Code
+.vscode/
+
+# Miscellaneous
+TAGS
+tags
+
+.cache
