@@ -1,9 +1,11 @@
+#include "color.cuh"
 #include <cmath>
 #include <cstdio>
 #include <iostream>
 #include <string>
-__global__ void write_to_framebuffer(int **framebuffer, const int image_width,
-                                     const int image_height) {
+
+__global__ void render_to_framebuffer(int **framebuffer, const int image_width,
+                                      const int image_height) {
   auto pixel_x = threadIdx.x + blockIdx.x * blockDim.x;
   auto pixel_y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -17,13 +19,8 @@ __global__ void write_to_framebuffer(int **framebuffer, const int image_width,
       auto g = double(row) / (image_height - 1);
       auto b = 0.0;
 
-      int ir = int(255.999 * r);
-      int ig = int(255.999 * g);
-      int ib = int(255.999 * b);
       auto pixel_index = row * image_width + col;
-      framebuffer[pixel_index][0] = ir;
-      framebuffer[pixel_index][1] = ig;
-      framebuffer[pixel_index][2] = ib;
+      write_color_to_framebuffer(framebuffer, pixel_index, Color(r, g, b));
     }
   }
 }
@@ -49,8 +46,13 @@ int main(int argc, char **argv) {
   }
   dim3 grid(grid_x, grid_y);
   dim3 block(block_x, block_y);
-  write_to_framebuffer<<<grid, block>>>(framebuffer, image_width, image_height);
+  std::clog << "Begin rendering" << std::endl;
+  render_to_framebuffer<<<grid, block>>>(framebuffer, image_width,
+                                         image_height);
+  cudaDeviceSynchronize();
+  std::clog << "End rendering" << std::endl;
 
+  std::clog << "Begin writing to file" << std::endl;
   std::cout << "P3\n" << image_width << " " << image_height << "\n255\n";
   for (int row = 0; row < image_height; row++) {
     for (int col = 0; col < image_width; col++) {
@@ -60,6 +62,7 @@ int main(int argc, char **argv) {
                 << framebuffer[pixel_index][2] << "\n";
     }
   }
+  std::clog << "End writing to file" << std::endl;
 
   return 0;
 }

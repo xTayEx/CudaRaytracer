@@ -5,4 +5,8 @@
 #define HOST __host__
 #define DEVICE __device__
 
+HOST_DEVICE double clamp(double val, double mini, double maxi) {
+  return val < mini ? mini : (val > maxi ? maxi : val);
+}
+
 #endif
