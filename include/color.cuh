@@ -8,8 +8,8 @@
 
 using Color = Vec3;
 
-HOST_DEVICE void write_color_to_framebuffer(int **framebuffer, int pixel_index,
-                                            Color pixel_color) {
+DEVICE void write_color_to_framebuffer(int **framebuffer, int pixel_index,
+                                       Color pixel_color) {
   int ir =
       static_cast<int>(clamp(std::ceil(255 * pixel_color.x()), 0.0, 255.0));
   int ig =
