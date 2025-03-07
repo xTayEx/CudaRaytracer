@@ -1,5 +1,6 @@
 CompileFlags:
   Remove: [
     "--generate-code=arch=compute_89,code=[compute_89,sm_89]",
-    "-forward-unknown-to-host-compiler"
+    "-forward-unknown-to-host-compiler",
+    "-rdc=true"
   ]
