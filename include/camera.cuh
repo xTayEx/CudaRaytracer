@@ -10,9 +10,10 @@ class Camera {
 public:
   Camera() = default;
 
-  DEVICE void intialize(Vec3 center, double focal_length, Vec3 viewport_u, Vec3 viewport_v,  
-                        int image_width, int image_height) {
-    this->center = center;
+  DEVICE void intialize(Vec3 camera_center, double focal_length,
+                        Vec3 viewport_u, Vec3 viewport_v, int image_width,
+                        int image_height) {
+    this->camera_center = camera_center;
     this->focal_length = focal_length;
     this->viewport_u = viewport_u;
     this->viewport_v = viewport_v;
@@ -20,9 +21,10 @@ public:
     this->image_height = image_height;
     pixel_delta_u = viewport_u / image_width;
     pixel_delta_v = viewport_v / image_height;
-    const auto viewport_upper_left = center - viewport_u / 2 + viewport_v / 2 - Vec3(0, 0, focal_length);
+    const auto viewport_upper_left = camera_center - viewport_u / 2 -
+                                     viewport_v / 2 - Vec3(0, 0, focal_length);
     pixel00_viewport_loc =
-        viewport_upper_left + pixel_delta_u / 2 + pixel_delta_v / 2;
+        viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
   }
 
   DEVICE void render_to_framebuffer(int *framebuffer, const int image_width,
@@ -51,11 +53,10 @@ public:
   };
 
 private:
-  Vec3 center;
+  Vec3 camera_center;
   Vec3 viewport_u;
   Vec3 viewport_v;
   Vec3 pixel00_viewport_loc;
-  Vec3 camera_center;
   Vec3 pixel_delta_u;
   Vec3 pixel_delta_v;
   int image_width;

@@ -3,7 +3,6 @@
 #include <cmath>
 #include <cstdio>
 #include <iostream>
-#include <string>
 
 __global__ void initialize_camera(Camera *camera_ptr, const double focal_length,
                                   const double viewport_width,
@@ -21,12 +20,14 @@ __global__ void initialize_camera(Camera *camera_ptr, const double focal_length,
   }
 }
 
-__global__ void cleanup(Camera *camera_ptr, int *framebuffer) {
+void cleanup_device(Camera *camera_ptr, int *framebuffer) {
   camera_ptr->~Camera();
 
-  cudaFree(camera_ptr);
-  cudaFree(framebuffer);
+  CHECK_CUDA(cudaFree(camera_ptr));
+  CHECK_CUDA(cudaFree(framebuffer));
 }
+
+void cleanup_host(int *framebuffer_host) { delete[] framebuffer_host; }
 
 __global__ void camera_render_launcher(Camera *camera_ptr, int *framebuffer,
                                        const int image_width,
@@ -54,7 +55,8 @@ int main(int argc, char **argv) {
   const double focal_length = 1.0;
 
   Camera *camera_ptr;
-  // TODO: Is there any neovim plugin to show the expanded macro?
+  // TODO: Is there any neovim plugin to show the expanded macro in a float
+  // window?
   CHECK_CUDA(cudaMalloc(&camera_ptr, sizeof(Camera)));
   CHECK_CUDA(cudaDeviceSynchronize());
 
@@ -72,7 +74,8 @@ int main(int argc, char **argv) {
   camera_render_launcher<<<grid, block>>>(camera_ptr, framebuffer, image_width,
                                           image_height);
 
-  cudaDeviceSynchronize();
+  CHECK_CUDA(cudaDeviceSynchronize());
+  print_dev_memory<<<1, 1>>>(framebuffer, image_width * image_height * 3);
   std::clog << "End rendering" << std::endl;
 
   std::clog << "Begin writing to file" << std::endl;
@@ -82,6 +85,7 @@ int main(int argc, char **argv) {
   CHECK_CUDA(cudaMemcpy(framebuffer_host, framebuffer,
                         image_width * image_height * 3 * sizeof(int),
                         cudaMemcpyDeviceToHost));
+  CHECK_CUDA(cudaDeviceSynchronize());
   for (int row = 0; row < image_height; row++) {
     for (int col = 0; col < image_width; col++) {
       auto pixel_index = row * image_width + col;
@@ -93,7 +97,8 @@ int main(int argc, char **argv) {
   std::clog << "End writing to file" << std::endl;
 
   // TODO: free memory
-  cleanup<<<1, 1>>>(camera_ptr, framebuffer);
+  cleanup_device(camera_ptr, framebuffer);
+  cleanup_host(framebuffer_host);
 
   return 0;
 }
