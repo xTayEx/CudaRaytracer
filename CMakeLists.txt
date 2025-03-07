@@ -5,5 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(raytracer_cuda main.cu)
+file(GLOB_RECURSE SOURCES "src/*.cu" "src/*.cpp")
+add_executable(raytracer_cuda main.cu ${SOURCES})
+target_include_directories(raytracer_cuda PRIVATE include)
 set_target_properties(raytracer_cuda PROPERTIES CUDA_ARCHITECTURES "89")
