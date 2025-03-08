@@ -4,6 +4,7 @@
 #include "color.cuh"
 #include "hittable.cuh"
 #include "hittable_list.cuh"
+#include "random.cuh"
 #include "ray.cuh"
 #include "utils.cuh"
 #include "vec3.cuh"
@@ -24,18 +25,19 @@ DEVICE double hit_sphere(const Point3 &center, double radius, const Ray &r) {
 
 class Camera {
 public:
-  DEVICE Camera() {}; 
-  DEVICE ~Camera() {};
+  DEVICE Camera() {};
+  DEVICE ~Camera(){};
 
   DEVICE void intialize(Vec3 camera_center, double focal_length,
                         Vec3 viewport_u, Vec3 viewport_v, int image_width,
-                        int image_height) {
+                        int image_height, int samples_per_pixel) {
     this->camera_center = camera_center;
     this->focal_length = focal_length;
     this->viewport_u = viewport_u;
     this->viewport_v = viewport_v;
     this->image_width = image_width;
     this->image_height = image_height;
+    this->samples_per_pixel = samples_per_pixel;
     pixel_delta_u = viewport_u / image_width;
     pixel_delta_v = viewport_v / image_height;
     const auto viewport_upper_left = camera_center - viewport_u / 2 -
@@ -58,14 +60,16 @@ public:
     for (int row = pixel_y; row < image_height; row += blockDim.y * gridDim.y) {
       for (int col = pixel_x; col < image_width;
            col += blockDim.x * gridDim.x) {
-        auto pixel_center =
-            pixel00_viewport_loc + col * pixel_delta_u + row * pixel_delta_v;
-        auto ray_direction = pixel_center - camera_center;
-        Ray ray(camera_center, ray_direction);
-        Color pixel_color = ray_color(ray, world);
+        Color pixel_color(0.0, 0.0, 0.0);
+        for (int sample_idx = 0; sample_idx < samples_per_pixel; ++sample_idx) {
+          auto ray_around = get_ray_around_pixel(row, col);
+          auto color_around = ray_color(ray_around, world);
+          pixel_color += color_around;
+        }
 
         auto pixel_index = (row * image_width + col) * 3;
-        write_color_to_framebuffer(framebuffer, pixel_index, pixel_color);
+        write_color_to_framebuffer(framebuffer, pixel_index,
+                                   pixel_color * (1.0 / samples_per_pixel));
       }
     }
   };
@@ -80,6 +84,23 @@ private:
   int image_width;
   int image_height;
   double focal_length;
+  int samples_per_pixel;
+
+  DEVICE Ray get_ray_around_pixel(int row, int col) {
+    auto offset = sample_square();
+    auto pixel_sample = pixel00_viewport_loc +
+                        ((col + offset.x()) * pixel_delta_u) +
+                        ((row + offset.y()) * pixel_delta_v);
+    auto ray_origin = camera_center;
+    auto ray_direction = pixel_sample - ray_origin;
+    Ray r(ray_origin, ray_direction);
+
+    return r;
+  }
+
+  DEVICE Vec3 sample_square() const {
+    return Vec3(random_double() - 0.5, random_double() - 0.5, 0.0);
+  }
 
   DEVICE Color ray_color(const Ray &r, HittableList *world) {
     HitRecord rec;

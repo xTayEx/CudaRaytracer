@@ -2,6 +2,7 @@
 #define UTILS_CUH
 
 #include <cstdio>
+#include <curand_kernel.h>
 
 #define HOST_DEVICE __host__ __device__
 #define HOST __host__
@@ -10,6 +11,14 @@
   do {                                                                         \
     if ((x) != cudaSuccess) {                                                  \
       printf("Error: %s\n", cudaGetErrorString(x));                            \
+      exit(1);                                                                 \
+    }                                                                          \
+  } while (0);
+
+#define CHECK_CURAND(x)                                                        \
+  do {                                                                         \
+    if ((x) != CURAND_STATUS_SUCCESS) {                                        \
+      printf("Error: %d\n", x);                                                \
       exit(1);                                                                 \
     }                                                                          \
   } while (0);

@@ -1,5 +1,6 @@
 #include "camera.cuh"
 #include "hittable_list.cuh"
+#include "random.cuh"
 #include "sphere.cuh"
 #include "utils.cuh"
 #include <cmath>
@@ -18,7 +19,7 @@ __global__ void initialize_camera(Camera *camera_ptr, const double focal_length,
     const auto pixel_delta_u = viewport_u / image_width;
     const auto pixel_delta_v = viewport_v / image_height;
     camera_ptr->intialize(camera_center, focal_length, viewport_u, viewport_v,
-                          image_width, image_height);
+                          image_width, image_height, 100);
   }
 }
 
@@ -76,6 +77,7 @@ int main(int argc, char **argv) {
     return -1;
   }
 
+  // Do some initialization
   const double viewport_height = 2.0;
   const double viewport_width = aspect_ratio * viewport_height;
 
@@ -114,6 +116,9 @@ int main(int argc, char **argv) {
   int *framebuffer;
   CHECK_CUDA(
       cudaMalloc(&framebuffer, image_width * image_height * 3 * sizeof(int)));
+
+  init_random(1234ULL, grid_x, grid_y, block_x, block_y);
+  // end initialization
 
   dim3 grid(grid_x, grid_y);
   dim3 block(block_x, block_y);
