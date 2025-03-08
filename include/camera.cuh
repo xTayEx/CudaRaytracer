@@ -6,6 +6,20 @@
 #include "utils.cuh"
 #include "vec3.cuh"
 
+DEVICE double hit_sphere(const Point3 &center, double radius, const Ray &r) {
+  Vec3 oc = center - r.origin();
+  auto a = r.direction().length_squared();
+  auto h = dot(oc, r.direction());
+  auto c = oc.length_squared() - radius * radius;
+  auto discriminant = h * h - a * c;
+
+  if (discriminant < 0) {
+    return -1.0;
+  } else {
+    return (h - std::sqrt(discriminant)) / a;
+  }
+}
+
 class Camera {
 public:
   Camera() = default;
@@ -64,6 +78,13 @@ private:
   double focal_length;
 
   DEVICE Color ray_color(const Ray &r) {
+    Point3 sphere_center(0, 0, -1);
+    auto t = hit_sphere(sphere_center, 0.5, r);
+    if (t > 0.0) {
+      auto normal = unit_vector(r.at(t) - sphere_center);
+      return 0.5 * Color(normal.x() + 1, normal.y() + 1, normal.z() + 1);
+    }
+
     Vec3 unit_direction = unit_vector(r.direction());
     auto a = 0.5 * (unit_direction.y() + 1.0);
     return (1.0 - a) * Color(1.0, 1.0, 1.0) + a * Color(0.5, 0.7, 1.0);
