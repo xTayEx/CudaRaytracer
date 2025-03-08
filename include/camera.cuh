@@ -46,7 +46,7 @@ public:
         Ray ray(camera_center, ray_direction);
         Color pixel_color = ray_color(ray);
 
-        auto pixel_index = row * image_width + col;
+        auto pixel_index = (row * image_width + col) * 3;
         write_color_to_framebuffer(framebuffer, pixel_index, pixel_color);
       }
     }

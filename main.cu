@@ -75,7 +75,6 @@ int main(int argc, char **argv) {
                                           image_height);
 
   CHECK_CUDA(cudaDeviceSynchronize());
-  print_dev_memory<<<1, 1>>>(framebuffer, image_width * image_height * 3);
   std::clog << "End rendering" << std::endl;
 
   std::clog << "Begin writing to file" << std::endl;
@@ -88,7 +87,7 @@ int main(int argc, char **argv) {
   CHECK_CUDA(cudaDeviceSynchronize());
   for (int row = 0; row < image_height; row++) {
     for (int col = 0; col < image_width; col++) {
-      auto pixel_index = row * image_width + col;
+      auto pixel_index = (row * image_width + col) * 3;
       std::cout << framebuffer_host[pixel_index + 0] << " "
                 << framebuffer_host[pixel_index + 1] << " "
                 << framebuffer_host[pixel_index + 2] << "\n";
