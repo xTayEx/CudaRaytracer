@@ -12,15 +12,15 @@ public:
     __shared__ Hittable **shared_objects;
     __shared__ int shared_capacity;
 
-    if (threadIdx.x == 0) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
       shared_capacity = capacity;
       shared_objects = (Hittable **)malloc(capacity * sizeof(Hittable *));
     }
     __syncthreads();
 
-    objects = shared_objects;
-    capacity = shared_capacity;
-    size = 0;
+    this->objects = shared_objects;
+    this->capacity = shared_capacity;
+    this->size = 0;
   }
 
   DEVICE void clear() { size = 0; }
@@ -53,11 +53,8 @@ public:
   DEVICE ~HittableList() {
     __syncthreads();
     if (threadIdx.x == 0) {
-      for (int i = 0; i < size; ++i) {
-        // TODO: check if this way of freeing is correct or not.
-        free(objects[i]);
-      }
       free(objects);
+      objects = nullptr;
     }
   };
 

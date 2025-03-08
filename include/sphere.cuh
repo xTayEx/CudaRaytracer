@@ -7,6 +7,7 @@ class Sphere : public Hittable {
 public:
   DEVICE Sphere(Point3 center, double radius)
       : center(center), radius(radius) {}
+  DEVICE ~Sphere() {};
   DEVICE bool hit(const Ray &r, double t_min, double t_max,
                   HitRecord &rec) const override {
 

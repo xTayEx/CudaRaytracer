@@ -2,6 +2,8 @@
 #define CAMERA_CUH
 
 #include "color.cuh"
+#include "hittable.cuh"
+#include "hittable_list.cuh"
 #include "ray.cuh"
 #include "utils.cuh"
 #include "vec3.cuh"
@@ -22,7 +24,8 @@ DEVICE double hit_sphere(const Point3 &center, double radius, const Ray &r) {
 
 class Camera {
 public:
-  Camera() = default;
+  DEVICE Camera() {}; 
+  DEVICE ~Camera() {};
 
   DEVICE void intialize(Vec3 camera_center, double focal_length,
                         Vec3 viewport_u, Vec3 viewport_v, int image_width,
@@ -41,7 +44,8 @@ public:
         viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
   }
 
-  DEVICE void render_to_framebuffer(int *framebuffer, const int image_width,
+  DEVICE void render_to_framebuffer(int *framebuffer, HittableList *world,
+                                    const int image_width,
                                     const int image_height) {
 
     auto pixel_x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -58,7 +62,7 @@ public:
             pixel00_viewport_loc + col * pixel_delta_u + row * pixel_delta_v;
         auto ray_direction = pixel_center - camera_center;
         Ray ray(camera_center, ray_direction);
-        Color pixel_color = ray_color(ray);
+        Color pixel_color = ray_color(ray, world);
 
         auto pixel_index = (row * image_width + col) * 3;
         write_color_to_framebuffer(framebuffer, pixel_index, pixel_color);
@@ -77,12 +81,10 @@ private:
   int image_height;
   double focal_length;
 
-  DEVICE Color ray_color(const Ray &r) {
-    Point3 sphere_center(0, 0, -1);
-    auto t = hit_sphere(sphere_center, 0.5, r);
-    if (t > 0.0) {
-      auto normal = unit_vector(r.at(t) - sphere_center);
-      return 0.5 * Color(normal.x() + 1, normal.y() + 1, normal.z() + 1);
+  DEVICE Color ray_color(const Ray &r, HittableList *world) {
+    HitRecord rec;
+    if (world->hit(r, 0, inf, rec)) {
+      return 0.5 * (rec.normal + Color(1.0, 1.0, 1.0));
     }
 
     Vec3 unit_direction = unit_vector(r.direction());
