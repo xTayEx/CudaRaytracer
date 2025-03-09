@@ -4,11 +4,13 @@
 #include "ray.cuh"
 #include "vec3.cuh"
 
+class Material;
 class HitRecord {
 public:
   Point3 p;
   Vec3 normal;
   double t;
+  Material *mat;
   bool front_face;
   DEVICE void set_front_face(const Ray &r, const Vec3 &outward_normal) {
     front_face = (dot(r.direction(), outward_normal) < 0);

@@ -4,6 +4,7 @@
 #include "color.cuh"
 #include "hittable.cuh"
 #include "hittable_list.cuh"
+#include "material.cuh"
 #include "random.cuh"
 #include "ray.cuh"
 #include "utils.cuh"
@@ -109,8 +110,12 @@ private:
     }
     HitRecord rec;
     if (world->hit(r, 0.001, inf, rec)) {
-      auto reflected_ray_dir = rec.normal + random_unit_vector();
-      return 0.5 * ray_color(Ray(rec.p, reflected_ray_dir), world, cur_depth + 1);
+      Ray scattered;
+      Color attenuation;
+      if (rec.mat->scatter(r, rec, attenuation, scattered)) {
+        return attenuation * ray_color(scattered, world, cur_depth + 1);
+      }
+      return Color(0.0, 0.0, 0.0);
     }
 
     Vec3 unit_direction = unit_vector(r.direction());

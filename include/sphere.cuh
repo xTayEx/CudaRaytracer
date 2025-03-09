@@ -2,12 +2,13 @@
 #define SPHERE_CUH
 
 #include "hittable.cuh"
+#include "material.cuh"
 
 class Sphere : public Hittable {
 public:
-  DEVICE Sphere(Point3 center, double radius)
-      : center(center), radius(radius) {}
-  DEVICE ~Sphere() {};
+  DEVICE Sphere(Point3 center, double radius, Material *mat)
+      : center(center), radius(radius), mat(mat) {}
+  DEVICE ~Sphere(){};
   DEVICE bool hit(const Ray &r, double t_min, double t_max,
                   HitRecord &rec) const override {
 
@@ -34,6 +35,7 @@ public:
     rec.p = r.at(rec.t);
     auto outward_normal = (rec.p - center) / radius;
     rec.set_front_face(r, outward_normal);
+    rec.mat = mat;
 
     return true;
   }
@@ -41,6 +43,7 @@ public:
 private:
   Point3 center;
   double radius;
+  Material *mat;
 };
 
 #endif

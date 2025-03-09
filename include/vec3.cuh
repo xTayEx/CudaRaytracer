@@ -89,6 +89,11 @@ public:
                 random_double(min, max));
   }
 
+  DEVICE bool near_zero() {
+    const auto s = 1e-8;
+    return (std::fabs(_x) < s) && (std::fabs(_y) < s) && (std::fabs(_z) < s);
+  }
+
 private:
   double _x, _y, _z;
 };
@@ -150,6 +155,10 @@ DEVICE inline Vec3 random_on_hemisphere(const Vec3 &normal) {
   } else {
     return -on_unit_sphere;
   }
+}
+
+DEVICE inline Vec3 reflect(const Vec3 &v, const Vec3 &n) {
+  return v - 2 * dot(v, n) * n;
 }
 
 using Point3 = Vec3;
