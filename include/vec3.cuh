@@ -133,6 +133,25 @@ DEVICE inline Vec3 cross(const Vec3 &v1, const Vec3 &v2) {
 
 DEVICE inline Vec3 unit_vector(const Vec3 &v) { return v / v.length(); }
 
+DEVICE inline Vec3 random_unit_vector() {
+  while (true) {
+    auto p = Vec3::random(-1, 1);
+    auto lensq = p.length_squared();
+    if (1e-160 < lensq && lensq <= 1) {
+      return p / std::sqrt(lensq);
+    }
+  }
+}
+
+DEVICE inline Vec3 random_on_hemisphere(const Vec3 &normal) {
+  auto on_unit_sphere = random_unit_vector();
+  if (dot(on_unit_sphere, normal) > 0.0) {
+    return on_unit_sphere;
+  } else {
+    return -on_unit_sphere;
+  }
+}
+
 using Point3 = Vec3;
 
 #endif

@@ -63,7 +63,7 @@ public:
         Color pixel_color(0.0, 0.0, 0.0);
         for (int sample_idx = 0; sample_idx < samples_per_pixel; ++sample_idx) {
           auto ray_around = get_ray_around_pixel(row, col);
-          auto color_around = ray_color(ray_around, world);
+          auto color_around = ray_color(ray_around, world, 0);
           pixel_color += color_around;
         }
 
@@ -83,6 +83,7 @@ private:
   Vec3 pixel_delta_v;
   int image_width;
   int image_height;
+  const int max_hit_depth = 10;
   double focal_length;
   int samples_per_pixel;
 
@@ -102,10 +103,14 @@ private:
     return Vec3(random_double() - 0.5, random_double() - 0.5, 0.0);
   }
 
-  DEVICE Color ray_color(const Ray &r, HittableList *world) {
+  DEVICE Color ray_color(const Ray &r, HittableList *world, int cur_depth) {
+    if (cur_depth >= max_hit_depth) {
+      return Color(0.0, 0.0, 0.0);
+    }
     HitRecord rec;
-    if (world->hit(r, 0, inf, rec)) {
-      return 0.5 * (rec.normal + Color(1.0, 1.0, 1.0));
+    if (world->hit(r, 0.001, inf, rec)) {
+      auto reflected_ray_dir = rec.normal + random_unit_vector();
+      return 0.5 * ray_color(Ray(rec.p, reflected_ray_dir), world, cur_depth + 1);
     }
 
     Vec3 unit_direction = unit_vector(r.direction());

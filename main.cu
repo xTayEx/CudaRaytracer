@@ -78,6 +78,7 @@ int main(int argc, char **argv) {
   }
 
   // Do some initialization
+  CHECK_CUDA(cudaDeviceSetLimit(cudaLimitStackSize, 2 * 1024));
   const double viewport_height = 2.0;
   const double viewport_width = aspect_ratio * viewport_height;
 
