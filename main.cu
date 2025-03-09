@@ -153,6 +153,7 @@ int main(int argc, char **argv) {
   cleanup_device(camera_ptr, world_ptr, spheres_ptr, spheres_count,
                  framebuffer);
   cleanup_host(framebuffer_host);
+  cleanup_random();
 
   return 0;
 }

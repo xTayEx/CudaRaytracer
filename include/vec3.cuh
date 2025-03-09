@@ -1,5 +1,6 @@
 #ifndef VEC3_CUH
 #define VEC3_CUH
+#include "random.cuh"
 #include "utils.cuh"
 #include <cmath>
 #include <cstdio>
@@ -75,11 +76,18 @@ public:
     return *this;
   }
 
-  DEVICE double length_squared() const {
-    return _x * _x + _y * _y + _z * _z;
-  }
+  DEVICE double length_squared() const { return _x * _x + _y * _y + _z * _z; }
 
   DEVICE double length() const { return std::sqrt(length_squared()); }
+
+  DEVICE static Vec3 random() {
+    return Vec3(random_double(), random_double(), random_double());
+  }
+
+  DEVICE static Vec3 random(double min, double max) {
+    return Vec3(random_double(min, max), random_double(min, max),
+                random_double(min, max));
+  }
 
 private:
   double _x, _y, _z;
