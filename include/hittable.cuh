@@ -20,9 +20,9 @@ public:
 
 class Hittable {
 public:
-  DEVICE virtual ~Hittable() {};
-  DEVICE virtual bool hit(const Ray &r, double t_min, double t_max,
-                          HitRecord &rec) const = 0;
+  DEVICE virtual ~Hittable(){};
+  DEVICE virtual bool
+  hit(const Ray &r, double t_min, double t_max, HitRecord &rec) const = 0;
 };
 
 #endif

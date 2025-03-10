@@ -16,7 +16,8 @@ DEVICE double linear_to_gamma2(double linear_component) {
   return 0;
 }
 
-DEVICE void write_color_to_framebuffer(int *framebuffer, int pixel_index,
+DEVICE void write_color_to_framebuffer(int *framebuffer,
+                                       int pixel_index,
                                        Color pixel_color) {
   auto r = pixel_color.x();
   auto g = pixel_color.y();

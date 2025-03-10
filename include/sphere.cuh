@@ -9,8 +9,8 @@ public:
   DEVICE Sphere(Point3 center, double radius, Material *mat)
       : center(center), radius(radius), mat(mat) {}
   DEVICE ~Sphere(){};
-  DEVICE bool hit(const Ray &r, double t_min, double t_max,
-                  HitRecord &rec) const override {
+  DEVICE bool
+  hit(const Ray &r, double t_min, double t_max, HitRecord &rec) const override {
 
     Vec3 oc = center - r.origin();
     auto a = r.direction().length_squared();

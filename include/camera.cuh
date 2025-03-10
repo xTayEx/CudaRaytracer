@@ -29,33 +29,46 @@ public:
   DEVICE Camera() {};
   DEVICE ~Camera(){};
 
-  DEVICE void intialize(Vec3 camera_center, double focal_length,
-                        int image_width, int image_height,
-                        int samples_per_pixel, double vfov) {
-    this->camera_center = camera_center;
-    this->focal_length = focal_length;
+  DEVICE void intialize(Point3 lookfrom,
+                        Point3 lookat,
+                        Vec3 vup,
+                        double focal_length,
+                        int image_width,
+                        int image_height,
+                        int samples_per_pixel,
+                        double vfov) {
+    this->camera_center = lookfrom;
+
+    this->lookfrom = lookfrom;
+    this->lookat = lookat;
+    this->vup = vup;
+
+    this->focal_length = (this->lookfrom - this->lookat).length();
     auto theta = degrees_to_radians(vfov);
     auto h = std::tan(theta / 2);
     auto viewport_height = 2.0 * h * focal_length;
     auto viewport_width =
         viewport_height * (double(image_width) / image_height);
+    w = unit_vector(lookfrom - lookat);
+    u = unit_vector(cross(vup, w));
+    v = cross(w, u);
 
-    this->viewport_u = Vec3(viewport_width, 0, 0);
-    this->viewport_v = Vec3(0, -viewport_height, 0);
+    this->viewport_u = viewport_width * u;
+    this->viewport_v = viewport_height * (-v);
     this->image_width = image_width;
     this->image_height = image_height;
     this->samples_per_pixel = samples_per_pixel;
     this->vfov = vfov;
     pixel_delta_u = this->viewport_u / image_width;
     pixel_delta_v = this->viewport_v / image_height;
-    const auto viewport_upper_left = camera_center - this->viewport_u / 2 -
-                                     this->viewport_v / 2 -
-                                     Vec3(0, 0, focal_length);
+    const auto viewport_upper_left = this->camera_center - this->viewport_u / 2 -
+                                     this->viewport_v / 2 - focal_length * w;
     pixel00_viewport_loc =
         viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
   }
 
-  DEVICE void render_to_framebuffer(int *framebuffer, HittableList *world,
+  DEVICE void render_to_framebuffer(int *framebuffer,
+                                    HittableList *world,
                                     const int image_width,
                                     const int image_height) {
 
@@ -77,8 +90,8 @@ public:
         }
 
         auto pixel_index = (row * image_width + col) * 3;
-        write_color_to_framebuffer(framebuffer, pixel_index,
-                                   pixel_color * (1.0 / samples_per_pixel));
+        write_color_to_framebuffer(
+            framebuffer, pixel_index, pixel_color * (1.0 / samples_per_pixel));
       }
     }
   };
@@ -90,6 +103,12 @@ private:
   Vec3 pixel00_viewport_loc;
   Vec3 pixel_delta_u;
   Vec3 pixel_delta_v;
+
+  Point3 lookfrom;
+  Point3 lookat;
+  Vec3 vup;
+  Vec3 u, v, w;
+
   int image_width;
   int image_height;
   double vfov = 90.0;

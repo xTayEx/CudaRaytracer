@@ -8,19 +8,36 @@
 #include <cstdio>
 #include <iostream>
 
-__global__ void initialize_camera(Camera *camera_ptr, double camera_x,
-                                  double camera_y, double camera_z,
-                                  const double focal_length, int image_width,
-                                  int image_height, double samples_per_pixel,
+__global__ void initialize_camera(Camera *camera_ptr,
+                                  double lookfrom_x,
+                                  double lookfrom_y,
+                                  double lookfrom_z,
+                                  double lookat_x,
+                                  double lookat_y,
+                                  double lookat_z,
+                                  double vup_x,
+                                  double vup_y,
+                                  double vup_z,
+                                  const double focal_length,
+                                  int image_width,
+                                  int image_height,
+                                  double samples_per_pixel,
                                   double vfov) {
   if (threadIdx.x == 0 && blockIdx.x == 0) {
     new (camera_ptr) Camera();
-    camera_ptr->intialize(Vec3(camera_x, camera_y, camera_z), focal_length,
-                          image_width, image_height, samples_per_pixel, vfov);
+    camera_ptr->intialize(Point3(lookfrom_x, lookfrom_y, lookfrom_y),
+                          Point3(lookat_x, lookat_y, lookat_z),
+                          Vec3(vup_x, vup_y, vup_z),
+                          focal_length,
+                          image_width,
+                          image_height,
+                          samples_per_pixel,
+                          vfov);
   }
 }
 
-__global__ void initialize_world(HittableList *world_ptr, Sphere **spheres_ptr,
+__global__ void initialize_world(HittableList *world_ptr,
+                                 Sphere **spheres_ptr,
                                  Material **materials_ptr,
                                  MaterialDescriptor *materials_desc,
                                  int hittables_count) {
@@ -75,12 +92,15 @@ __global__ void device_object_destructor(Camera *camera_ptr,
   }
 }
 
-void cleanup_device(Camera *camera_ptr, HittableList *world_ptr,
-                    Sphere **spheres_ptr, Material **materials_ptr,
-                    int hittables_count, int *framebuffer) {
+void cleanup_device(Camera *camera_ptr,
+                    HittableList *world_ptr,
+                    Sphere **spheres_ptr,
+                    Material **materials_ptr,
+                    int hittables_count,
+                    int *framebuffer) {
 
-  device_object_destructor<<<1, 1>>>(camera_ptr, world_ptr, spheres_ptr,
-                                     materials_ptr, hittables_count);
+  device_object_destructor<<<1, 1>>>(
+      camera_ptr, world_ptr, spheres_ptr, materials_ptr, hittables_count);
   CHECK_CUDA(cudaFree(camera_ptr));
   CHECK_CUDA(cudaFree(world_ptr));
   CHECK_CUDA(cudaFree(spheres_ptr));
@@ -88,8 +108,10 @@ void cleanup_device(Camera *camera_ptr, HittableList *world_ptr,
   CHECK_CUDA(cudaFree(framebuffer));
 }
 
-void cleanup_host(int *framebuffer_host, Sphere **aux_spheres_ptr,
-                  Material **aux_materials_ptr, int hittables_count) {
+void cleanup_host(int *framebuffer_host,
+                  Sphere **aux_spheres_ptr,
+                  Material **aux_materials_ptr,
+                  int hittables_count) {
   delete[] framebuffer_host;
   // All material objects have been free in `cleanup_device`.
   // So we don't need to free them here.
@@ -97,12 +119,13 @@ void cleanup_host(int *framebuffer_host, Sphere **aux_spheres_ptr,
   delete[] aux_materials_ptr;
 }
 
-__global__ void camera_render_launcher(Camera *camera_ptr, int *framebuffer,
+__global__ void camera_render_launcher(Camera *camera_ptr,
+                                       int *framebuffer,
                                        HittableList *world,
                                        const int image_width,
                                        const int image_height) {
-  camera_ptr->render_to_framebuffer(framebuffer, world, image_width,
-                                    image_height);
+  camera_ptr->render_to_framebuffer(
+      framebuffer, world, image_width, image_height);
 }
 
 int main(int argc, char **argv) {
@@ -124,7 +147,8 @@ int main(int argc, char **argv) {
   const int block_x = std::min(grid_x / 16, 32);
   const int block_y = std::min(grid_y / 16, 32);
   const double focal_length = 1.0;
-  const double vfov = 90.0;
+  const double vfov = 20.0;
+  const int samples_per_pixel = 100;
 
   Camera *camera_ptr;
   // TODO: Is there any neovim plugin to show the expanded macro in a floating
@@ -134,8 +158,21 @@ int main(int argc, char **argv) {
   CHECK_CUDA(cudaMalloc(&camera_ptr, sizeof(Camera)));
   CHECK_CUDA(cudaDeviceSynchronize());
   // use placement new to initialize the camera object
-  initialize_camera<<<1, 1>>>(camera_ptr, 0.0, 0.0, 0.0, focal_length,
-                              image_width, image_height, 100, vfov);
+  initialize_camera<<<1, 1>>>(camera_ptr,
+                              -2.0,
+                              2.0,
+                              1.0,
+                              0.0,
+                              0.0,
+                              -1.0,
+                              0.0,
+                              1.0,
+                              0.0,
+                              focal_length,
+                              image_width,
+                              image_height,
+                              samples_per_pixel,
+                              vfov);
 
   // Allocate memory for the world
   HittableList *world_ptr;
@@ -159,7 +196,8 @@ int main(int argc, char **argv) {
   // Copy the pointers to the device
   Sphere **spheres_ptr;
   CHECK_CUDA(cudaMalloc(&spheres_ptr, hittables_count * sizeof(Sphere *)));
-  CHECK_CUDA(cudaMemcpy(spheres_ptr, aux_spheres_ptr,
+  CHECK_CUDA(cudaMemcpy(spheres_ptr,
+                        aux_spheres_ptr,
                         hittables_count * sizeof(Sphere *),
                         cudaMemcpyHostToDevice));
 
@@ -195,7 +233,8 @@ int main(int argc, char **argv) {
   // Copy the pointers to device.
   Material **materials_ptr;
   CHECK_CUDA(cudaMalloc(&materials_ptr, hittables_count * sizeof(Material *)));
-  CHECK_CUDA(cudaMemcpy(materials_ptr, aux_materials_ptr,
+  CHECK_CUDA(cudaMemcpy(materials_ptr,
+                        aux_materials_ptr,
                         hittables_count * sizeof(Material *),
                         cudaMemcpyHostToDevice));
 
@@ -203,13 +242,18 @@ int main(int argc, char **argv) {
   // So we can initialize the materials on device.
   MaterialDescriptor *device_materials_desc;
   CHECK_CUDA(cudaMalloc(&device_materials_desc, sizeof(host_materials_desc)));
-  CHECK_CUDA(cudaMemcpy(device_materials_desc, host_materials_desc,
-                        sizeof(host_materials_desc), cudaMemcpyHostToDevice));
+  CHECK_CUDA(cudaMemcpy(device_materials_desc,
+                        host_materials_desc,
+                        sizeof(host_materials_desc),
+                        cudaMemcpyHostToDevice));
 
   // Initialize the world object by placement new.
   // Add objects to the world.
-  initialize_world<<<1, 1>>>(world_ptr, spheres_ptr, materials_ptr,
-                             device_materials_desc, hittables_count);
+  initialize_world<<<1, 1>>>(world_ptr,
+                             spheres_ptr,
+                             materials_ptr,
+                             device_materials_desc,
+                             hittables_count);
   CHECK_CUDA(cudaDeviceSynchronize());
 
   // Allocate memory for the framebuffer
@@ -225,8 +269,8 @@ int main(int argc, char **argv) {
   dim3 block(block_x, block_y);
   std::clog << "Begin rendering" << std::endl;
 
-  camera_render_launcher<<<grid, block>>>(camera_ptr, framebuffer, world_ptr,
-                                          image_width, image_height);
+  camera_render_launcher<<<grid, block>>>(
+      camera_ptr, framebuffer, world_ptr, image_width, image_height);
 
   CHECK_CUDA(cudaDeviceSynchronize());
   std::clog << "End rendering" << std::endl;
@@ -235,7 +279,8 @@ int main(int argc, char **argv) {
   std::cout << "P3\n" << image_width << " " << image_height << "\n255\n";
 
   int *framebuffer_host = new int[image_width * image_height * 3];
-  CHECK_CUDA(cudaMemcpy(framebuffer_host, framebuffer,
+  CHECK_CUDA(cudaMemcpy(framebuffer_host,
+                        framebuffer,
                         image_width * image_height * 3 * sizeof(int),
                         cudaMemcpyDeviceToHost));
   CHECK_CUDA(cudaDeviceSynchronize());
@@ -251,10 +296,14 @@ int main(int argc, char **argv) {
 
   // TODO: free memory
 
-  cleanup_device(camera_ptr, world_ptr, spheres_ptr, materials_ptr,
-                 hittables_count, framebuffer);
-  cleanup_host(framebuffer_host, aux_spheres_ptr, aux_materials_ptr,
-               hittables_count);
+  cleanup_device(camera_ptr,
+                 world_ptr,
+                 spheres_ptr,
+                 materials_ptr,
+                 hittables_count,
+                 framebuffer);
+  cleanup_host(
+      framebuffer_host, aux_spheres_ptr, aux_materials_ptr, hittables_count);
   cleanup_random();
 
   return 0;
