@@ -18,21 +18,23 @@ __global__ void initialize_camera(Camera *camera_ptr,
                                   double vup_x,
                                   double vup_y,
                                   double vup_z,
-                                  const double focal_length,
                                   int image_width,
                                   int image_height,
                                   double samples_per_pixel,
-                                  double vfov) {
+                                  double vfov,
+                                  double defocus_angle,
+                                  double focus_dist) {
   if (threadIdx.x == 0 && blockIdx.x == 0) {
     new (camera_ptr) Camera();
     camera_ptr->intialize(Point3(lookfrom_x, lookfrom_y, lookfrom_y),
                           Point3(lookat_x, lookat_y, lookat_z),
                           Vec3(vup_x, vup_y, vup_z),
-                          focal_length,
                           image_width,
                           image_height,
                           samples_per_pixel,
-                          vfov);
+                          vfov,
+                          defocus_angle,
+                          focus_dist);
   }
 }
 
@@ -146,7 +148,6 @@ int main(int argc, char **argv) {
   const int grid_y = image_height / 9;
   const int block_x = std::min(grid_x / 16, 32);
   const int block_y = std::min(grid_y / 16, 32);
-  const double focal_length = 1.0;
   const double vfov = 20.0;
   const int samples_per_pixel = 100;
 
@@ -168,11 +169,12 @@ int main(int argc, char **argv) {
                               0.0,
                               1.0,
                               0.0,
-                              focal_length,
                               image_width,
                               image_height,
                               samples_per_pixel,
-                              vfov);
+                              vfov,
+                              10.0,
+                              4);
 
   // Allocate memory for the world
   HittableList *world_ptr;

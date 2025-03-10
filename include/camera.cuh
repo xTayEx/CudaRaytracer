@@ -32,21 +32,24 @@ public:
   DEVICE void intialize(Point3 lookfrom,
                         Point3 lookat,
                         Vec3 vup,
-                        double focal_length,
                         int image_width,
                         int image_height,
                         int samples_per_pixel,
-                        double vfov) {
+                        double vfov,
+                        double defocus_angle,
+                        double focus_dist) {
     this->camera_center = lookfrom;
 
     this->lookfrom = lookfrom;
     this->lookat = lookat;
     this->vup = vup;
 
-    this->focal_length = (this->lookfrom - this->lookat).length();
+    this->defocus_angle = defocus_angle;
+    this->focus_dist = focus_dist;
+
     auto theta = degrees_to_radians(vfov);
     auto h = std::tan(theta / 2);
-    auto viewport_height = 2.0 * h * focal_length;
+    auto viewport_height = 2.0 * h * this->focus_dist;
     auto viewport_width =
         viewport_height * (double(image_width) / image_height);
     w = unit_vector(lookfrom - lookat);
@@ -61,10 +64,16 @@ public:
     this->vfov = vfov;
     pixel_delta_u = this->viewport_u / image_width;
     pixel_delta_v = this->viewport_v / image_height;
-    const auto viewport_upper_left = this->camera_center - this->viewport_u / 2 -
-                                     this->viewport_v / 2 - focal_length * w;
+    const auto viewport_upper_left =
+        this->camera_center - this->viewport_u / 2 - this->viewport_v / 2 -
+        this->focus_dist * w;
     pixel00_viewport_loc =
         viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
+
+    auto defocus_radius =
+        this->focus_dist * std::tan(degrees_to_radians(defocus_angle) / 2);
+    this->defocus_disk_u = defocus_radius * u;
+    this->defocus_disk_v = defocus_radius * v;
   }
 
   DEVICE void render_to_framebuffer(int *framebuffer,
@@ -108,12 +117,16 @@ private:
   Point3 lookat;
   Vec3 vup;
   Vec3 u, v, w;
+  Vec3 defocus_disk_u;
+  Vec3 defocus_disk_v;
+
+  double defocus_angle;
+  double focus_dist;
 
   int image_width;
   int image_height;
   double vfov = 90.0;
   const int max_hit_depth = 10;
-  double focal_length;
   int samples_per_pixel;
 
   DEVICE Ray get_ray_around_pixel(int row, int col) {
@@ -121,11 +134,19 @@ private:
     auto pixel_sample = pixel00_viewport_loc +
                         ((col + offset.x()) * pixel_delta_u) +
                         ((row + offset.y()) * pixel_delta_v);
-    auto ray_origin = camera_center;
+    auto ray_origin = (this->defocus_angle <= 0 ? this->camera_center
+                                                : defocus_disk_sample());
     auto ray_direction = pixel_sample - ray_origin;
     Ray r(ray_origin, ray_direction);
 
     return r;
+  }
+
+  DEVICE Point3 defocus_disk_sample() const {
+    // Returns a random point in the camera defocus disk.
+    auto p = random_in_unit_disk();
+    return this->camera_center + (p[0] * defocus_disk_u) +
+           (p[1] * defocus_disk_v);
   }
 
   DEVICE Vec3 sample_square() const {
