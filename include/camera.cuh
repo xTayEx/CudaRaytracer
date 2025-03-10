@@ -30,19 +30,27 @@ public:
   DEVICE ~Camera(){};
 
   DEVICE void intialize(Vec3 camera_center, double focal_length,
-                        Vec3 viewport_u, Vec3 viewport_v, int image_width,
-                        int image_height, int samples_per_pixel) {
+                        int image_width, int image_height,
+                        int samples_per_pixel, double vfov) {
     this->camera_center = camera_center;
     this->focal_length = focal_length;
-    this->viewport_u = viewport_u;
-    this->viewport_v = viewport_v;
+    auto theta = degrees_to_radians(vfov);
+    auto h = std::tan(theta / 2);
+    auto viewport_height = 2.0 * h * focal_length;
+    auto viewport_width =
+        viewport_height * (double(image_width) / image_height);
+
+    this->viewport_u = Vec3(viewport_width, 0, 0);
+    this->viewport_v = Vec3(0, -viewport_height, 0);
     this->image_width = image_width;
     this->image_height = image_height;
     this->samples_per_pixel = samples_per_pixel;
-    pixel_delta_u = viewport_u / image_width;
-    pixel_delta_v = viewport_v / image_height;
-    const auto viewport_upper_left = camera_center - viewport_u / 2 -
-                                     viewport_v / 2 - Vec3(0, 0, focal_length);
+    this->vfov = vfov;
+    pixel_delta_u = this->viewport_u / image_width;
+    pixel_delta_v = this->viewport_v / image_height;
+    const auto viewport_upper_left = camera_center - this->viewport_u / 2 -
+                                     this->viewport_v / 2 -
+                                     Vec3(0, 0, focal_length);
     pixel00_viewport_loc =
         viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
   }
@@ -84,6 +92,7 @@ private:
   Vec3 pixel_delta_v;
   int image_width;
   int image_height;
+  double vfov = 90.0;
   const int max_hit_depth = 10;
   double focal_length;
   int samples_per_pixel;

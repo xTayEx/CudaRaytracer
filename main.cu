@@ -8,19 +8,15 @@
 #include <cstdio>
 #include <iostream>
 
-__global__ void initialize_camera(Camera *camera_ptr, const double focal_length,
-                                  const double viewport_width,
-                                  const double viewport_height, int image_width,
-                                  int image_height) {
+__global__ void initialize_camera(Camera *camera_ptr, double camera_x,
+                                  double camera_y, double camera_z,
+                                  const double focal_length, int image_width,
+                                  int image_height, double samples_per_pixel,
+                                  double vfov) {
   if (threadIdx.x == 0 && blockIdx.x == 0) {
     new (camera_ptr) Camera();
-    Vec3 camera_center = Point3(0, 0, 0);
-    Vec3 viewport_u = Vec3(viewport_width, 0, 0);
-    Vec3 viewport_v = Vec3(0, -viewport_height, 0);
-    const auto pixel_delta_u = viewport_u / image_width;
-    const auto pixel_delta_v = viewport_v / image_height;
-    camera_ptr->intialize(camera_center, focal_length, viewport_u, viewport_v,
-                          image_width, image_height, 100);
+    camera_ptr->intialize(Vec3(camera_x, camera_y, camera_z), focal_length,
+                          image_width, image_height, samples_per_pixel, vfov);
   }
 }
 
@@ -37,7 +33,10 @@ __global__ void initialize_world(HittableList *world_ptr, Sphere **spheres_ptr,
       new (materials_ptr[i]) Lambertian(albedo);
       break;
     case MaterialType::METAL:
-      new (materials_ptr[i]) Metal(albedo);
+      new (materials_ptr[i]) Metal(albedo, materials_desc[i].fuzz);
+      break;
+    case MaterialType::DIELECTRIC:
+      new (materials_ptr[i]) Dielectric(materials_desc[i].refraction_index);
       break;
     default:
       break;
@@ -47,7 +46,8 @@ __global__ void initialize_world(HittableList *world_ptr, Sphere **spheres_ptr,
   new (spheres_ptr[0]) Sphere(Point3(0, -100.5, -1.0), 100, materials_ptr[0]);
   new (spheres_ptr[1]) Sphere(Point3(0, 0, -1.2), 0.5, materials_ptr[1]);
   new (spheres_ptr[2]) Sphere(Point3(-1.0, 0, -1.0), 0.5, materials_ptr[2]);
-  new (spheres_ptr[3]) Sphere(Point3(1.0, 0, -1.0), 0.5, materials_ptr[3]);
+  new (spheres_ptr[3]) Sphere(Point3(-1.0, 0, -1.0), 0.4, materials_ptr[3]);
+  new (spheres_ptr[4]) Sphere(Point3(1.0, 0, -1.0), 0.5, materials_ptr[4]);
 
   if (threadIdx.x == 0 && blockIdx.x == 0) {
     // use placement new to initialize the world object
@@ -118,14 +118,13 @@ int main(int argc, char **argv) {
 
   // Do some initialization
   CHECK_CUDA(cudaDeviceSetLimit(cudaLimitStackSize, 16 * 1024));
-  const double viewport_height = 2.0;
-  const double viewport_width = aspect_ratio * viewport_height;
 
   const int grid_x = image_width / 16;
   const int grid_y = image_height / 9;
   const int block_x = std::min(grid_x / 16, 32);
   const int block_y = std::min(grid_y / 16, 32);
   const double focal_length = 1.0;
+  const double vfov = 90.0;
 
   Camera *camera_ptr;
   // TODO: Is there any neovim plugin to show the expanded macro in a floating
@@ -135,19 +134,19 @@ int main(int argc, char **argv) {
   CHECK_CUDA(cudaMalloc(&camera_ptr, sizeof(Camera)));
   CHECK_CUDA(cudaDeviceSynchronize());
   // use placement new to initialize the camera object
-  initialize_camera<<<1, 1>>>(camera_ptr, focal_length, viewport_width,
-                              viewport_height, image_width, image_height);
+  initialize_camera<<<1, 1>>>(camera_ptr, 0.0, 0.0, 0.0, focal_length,
+                              image_width, image_height, 100, vfov);
 
   // Allocate memory for the world
   HittableList *world_ptr;
   CHECK_CUDA(cudaMalloc(&world_ptr, sizeof(HittableList)));
 
-  constexpr int hittables_count = 4;
+  constexpr int hittables_count = 5;
 
   // Now we need to allocate memory for the objects in the world
   // We can not just use the for loop and cudaMalloc to allocate
   // memory for each object because points in `spheres_ptr` are
-  // on the devcie, and we can not use them and call `cudaMalloc` 
+  // on the devcie, and we can not use them and call `cudaMalloc`
   // in the host code.
   // Therefore, we need to first allocate memory for the pointers
   // on the host (using `cudaMalloc`), that copy the pointer value
@@ -166,10 +165,11 @@ int main(int argc, char **argv) {
 
   // Descriptors are needed because size of each material is different.
   const MaterialDescriptor host_materials_desc[hittables_count] = {
-      {MaterialType::LAMBERTIAN, 0.8, 0.8, 0.0},
-      {MaterialType::LAMBERTIAN, 0.1, 0.2, 0.5},
-      {MaterialType::METAL, 0.8, 0.8, 0.8},
-      {MaterialType::METAL, 0.8, 0.6, 0.2},
+      {MaterialType::LAMBERTIAN, 0.8, 0.8, 0.0, 0.0, 0.0},
+      {MaterialType::LAMBERTIAN, 0.1, 0.2, 0.5, 0.0, 0.0},
+      {MaterialType::DIELECTRIC, 0.0, 0.0, 0.0, 0.0, 1.50},
+      {MaterialType::DIELECTRIC, 0.0, 0.0, 0.0, 0.0, 1.0 / 1.5},
+      {MaterialType::METAL, 0.8, 0.6, 0.2, 1.0, 0.0},
   };
 
   // Allocate memory for the materials according to their own type.
@@ -182,6 +182,9 @@ int main(int argc, char **argv) {
       break;
     case MaterialType::METAL:
       CHECK_CUDA(cudaMalloc(&aux_materials_ptr[i], sizeof(Metal)));
+      break;
+    case MaterialType::DIELECTRIC:
+      CHECK_CUDA(cudaMalloc(&aux_materials_ptr[i], sizeof(Dielectric)));
       break;
     default:
       std::cerr << "Unknown material type" << std::endl;
