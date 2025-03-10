@@ -4,6 +4,7 @@
 #include "random.cuh"
 #include "sphere.cuh"
 #include "utils.cuh"
+#include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <iostream>
@@ -26,7 +27,7 @@ __global__ void initialize_camera(Camera *camera_ptr,
                                   double focus_dist) {
   if (threadIdx.x == 0 && blockIdx.x == 0) {
     new (camera_ptr) Camera();
-    camera_ptr->intialize(Point3(lookfrom_x, lookfrom_y, lookfrom_y),
+    camera_ptr->intialize(Point3(lookfrom_x, lookfrom_y, lookfrom_z),
                           Point3(lookat_x, lookat_y, lookat_z),
                           Vec3(vup_x, vup_y, vup_z),
                           image_width,
@@ -42,6 +43,7 @@ __global__ void initialize_world(HittableList *world_ptr,
                                  Sphere **spheres_ptr,
                                  Material **materials_ptr,
                                  MaterialDescriptor *materials_desc,
+                                 SphereDescriptor *spheres_desc,
                                  int hittables_count) {
 
   // TODO:: one thread per object. (but only thread 0 assemles the world)
@@ -62,11 +64,12 @@ __global__ void initialize_world(HittableList *world_ptr,
     }
   }
 
-  new (spheres_ptr[0]) Sphere(Point3(0, -100.5, -1.0), 100, materials_ptr[0]);
-  new (spheres_ptr[1]) Sphere(Point3(0, 0, -1.2), 0.5, materials_ptr[1]);
-  new (spheres_ptr[2]) Sphere(Point3(-1.0, 0, -1.0), 0.5, materials_ptr[2]);
-  new (spheres_ptr[3]) Sphere(Point3(-1.0, 0, -1.0), 0.4, materials_ptr[3]);
-  new (spheres_ptr[4]) Sphere(Point3(1.0, 0, -1.0), 0.5, materials_ptr[4]);
+  for (int i = 0; i < hittables_count; ++i) {
+    Point3 hittable_center(
+        spheres_desc[i].x, spheres_desc[i].y, spheres_desc[i].z);
+    new (spheres_ptr[i])
+        Sphere(hittable_center, spheres_desc[i].radius, materials_ptr[i]);
+  }
 
   if (threadIdx.x == 0 && blockIdx.x == 0) {
     // use placement new to initialize the world object
@@ -160,12 +163,12 @@ int main(int argc, char **argv) {
   CHECK_CUDA(cudaDeviceSynchronize());
   // use placement new to initialize the camera object
   initialize_camera<<<1, 1>>>(camera_ptr,
-                              -2.0,
+                              13.0,
                               2.0,
-                              1.0,
+                              3.0,
                               0.0,
                               0.0,
-                              -1.0,
+                              0.0,
                               0.0,
                               1.0,
                               0.0,
@@ -173,14 +176,15 @@ int main(int argc, char **argv) {
                               image_height,
                               samples_per_pixel,
                               vfov,
-                              10.0,
-                              4);
+                              0.6,
+                              10.0);
 
   // Allocate memory for the world
   HittableList *world_ptr;
   CHECK_CUDA(cudaMalloc(&world_ptr, sizeof(HittableList)));
 
-  constexpr int hittables_count = 5;
+  constexpr int hittables_count =
+      1 + 3 + 22 * 22; // ground + 3 large spheres + 22 * 22 small spheres
 
   // Now we need to allocate memory for the objects in the world
   // We can not just use the for loop and cudaMalloc to allocate
@@ -204,13 +208,71 @@ int main(int argc, char **argv) {
                         cudaMemcpyHostToDevice));
 
   // Descriptors are needed because size of each material is different.
-  const MaterialDescriptor host_materials_desc[hittables_count] = {
-      {MaterialType::LAMBERTIAN, 0.8, 0.8, 0.0, 0.0, 0.0},
-      {MaterialType::LAMBERTIAN, 0.1, 0.2, 0.5, 0.0, 0.0},
-      {MaterialType::DIELECTRIC, 0.0, 0.0, 0.0, 0.0, 1.50},
-      {MaterialType::DIELECTRIC, 0.0, 0.0, 0.0, 0.0, 1.0 / 1.5},
-      {MaterialType::METAL, 0.8, 0.6, 0.2, 1.0, 0.0},
-  };
+  MaterialDescriptor host_materials_desc[hittables_count];
+  SphereDescriptor host_spheres_desc[hittables_count];
+  unsigned int hittable_idx = 0;
+  // ground
+  host_materials_desc[hittable_idx] = {
+      MaterialType::LAMBERTIAN, 0.5, 0.5, 0.5, 0.0, 0.0};
+  host_spheres_desc[hittable_idx++] = {0, -1000, 0, 1000};
+
+  for (int a = -11; a < 11; ++a) {
+    for (int b = -11; b < 11; ++b) {
+      auto chosen_mat = random_double_host();
+      SphereDescriptor sphere_desc{a + 0.9 * random_double_host(),
+                                   0.2,
+                                   b + 0.9 * random_double_host(),
+                                   0.2};
+      host_spheres_desc[hittable_idx] = sphere_desc;
+      // if (std::sqrt((sphere_desc.x - 4) * (sphere_desc.x - 4) +
+      //               (sphere_desc.y - 0.2) * (sphere_desc.y - 0.2) +
+      //               sphere_desc.z * sphere_desc.z) <= 0.9) {
+      //   continue;
+      // }
+
+      if (chosen_mat < 0.8) {
+        host_materials_desc[hittable_idx] = {
+            MaterialType::LAMBERTIAN,
+            random_double_host() * random_double_host(),
+            random_double_host() * random_double_host(),
+            random_double_host() * random_double_host(),
+            0.0,
+            0.0};
+      } else if (chosen_mat < 0.95) {
+        host_materials_desc[hittable_idx] = {
+            MaterialType::METAL,
+            random_double_host(0.5, 1.0),
+            random_double_host(0.5, 1.0),
+            random_double_host(0.5, 1.0),
+            random_double_host(0, 0.5),
+        };
+      } else {
+        host_materials_desc[hittable_idx] = {
+            MaterialType::DIELECTRIC,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.5,
+        };
+      }
+      hittable_idx++;
+    }
+  }
+
+  // large sphere 1
+  host_spheres_desc[hittable_idx] = {0.0, 1.0, 0.0, 1.0};
+  host_materials_desc[hittable_idx++] = {
+      MaterialType::DIELECTRIC, 0.0, 0.0, 0.0, 0.0, 1.5};
+  // large sphere 2
+  host_spheres_desc[hittable_idx] = {-4.0, 1.0, 0.0, 1.0};
+  host_materials_desc[hittable_idx++] = {
+      MaterialType::LAMBERTIAN, 0.4, 0.2, 0.1, 0.0, 0.0};
+  // large sphere 3
+  host_spheres_desc[hittable_idx] = {4.0, 1.0, 0.0, 1.0};
+  host_materials_desc[hittable_idx++] = {
+      MaterialType::METAL, 0.7, 0.6, 0.5, 0.0, 0.0};
+  assert(hittable_idx == hittables_count);
 
   // Allocate memory for the materials according to their own type.
   // Use the same allocation logic as the spheres.
@@ -249,12 +311,20 @@ int main(int argc, char **argv) {
                         sizeof(host_materials_desc),
                         cudaMemcpyHostToDevice));
 
+  SphereDescriptor *device_spheres_desc;
+  CHECK_CUDA(cudaMalloc(&device_spheres_desc, sizeof(host_spheres_desc)));
+  CHECK_CUDA(cudaMemcpy(device_spheres_desc,
+                        host_spheres_desc,
+                        sizeof(host_spheres_desc),
+                        cudaMemcpyHostToDevice));
+
   // Initialize the world object by placement new.
   // Add objects to the world.
   initialize_world<<<1, 1>>>(world_ptr,
                              spheres_ptr,
                              materials_ptr,
                              device_materials_desc,
+                             device_spheres_desc,
                              hittables_count);
   CHECK_CUDA(cudaDeviceSynchronize());
 

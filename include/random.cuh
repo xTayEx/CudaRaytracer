@@ -3,6 +3,7 @@
 
 #include "utils.cuh"
 #include <curand_kernel.h>
+#include <random>
 
 DEVICE curandState *states = nullptr;
 __global__ void init_curand_state_kernel(unsigned long long seed) {
@@ -29,6 +30,16 @@ DEVICE double random_double() {
 }
 DEVICE double random_double(double mini, double maxi) {
   return mini + (maxi - mini) * random_double();
+}
+
+double random_double_host() {
+  static std::uniform_real_distribution<double> dist(0.0, 1.0);
+  static std::mt19937 gen;
+  return dist(gen);
+}
+
+double random_double_host(double mini, double maxi) {
+  return mini + (maxi - mini) * random_double_host();
 }
 
 #endif

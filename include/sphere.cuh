@@ -46,4 +46,11 @@ private:
   Material *mat;
 };
 
+struct SphereDescriptor {
+  double x;
+  double y;
+  double z;
+  double radius;
+};
+
 #endif
